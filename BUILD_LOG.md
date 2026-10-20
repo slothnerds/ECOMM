@@ -10,8 +10,9 @@ Each step is explained and approved before it runs.
 
 | Step | Description | Status | Date |
 |---|---|---|---|
-| 0.1 | Verify toolchains (JDK, Maven, Python, uv, Git, Docker) | ⚠️ Partly done: uv and Docker missing | 2026-10-20 |
-| 0.2 | Start shared PostgreSQL with Docker Compose | ⏳ Pending | |
+| 0.1 | Verify toolchains (JDK, Maven, Python, uv, Git, Docker) | ✅ Done | 2026-10-20 |
+| 0.1a | Add `.gitignore` for both stacks | ✅ Done | 2026-10-20 |
+| 0.2 | Start shared PostgreSQL with Docker Compose | ▶️ Next | |
 | 0.3 | Code quality tools (Spotless, ruff, mypy, pre-commit) | ⏳ Pending | |
 | 1.1 | Create both projects with domain packages | ⏳ Pending | |
 | 1.2 | Load configuration from environment | ⏳ Pending | |
@@ -107,3 +108,32 @@ Each executed step gets an entry here: what changed, the commands run, the resul
 **Outcome:** Java and Python toolchains are ready. **Blocking:** install `uv` before Step 1.1 (Python), and Docker before Step 0.2.
 
 **Learned:** Maven runs on whichever JDK `JAVA_HOME` / `PATH` points to. `mvn -v` shows which one, and here it correctly uses JDK 25.
+
+**Follow-up (2026-10-20):** The user installed the missing tools, initialized Git and pushed to GitHub.
+
+| Tool | Result |
+|---|---|
+| uv | ✅ 0.13.3 |
+| Docker | ✅ Engine 29.9.1, Compose v5.6.0 (per-user install under `%LOCALAPPDATA%\Programs\DockerDesktop`) |
+| Git repo | ✅ Branch `main` tracking `origin` = `git@github.com:slothnerds/ECOMM.git`, 1 commit |
+
+**Learned:** A program installed while a terminal is open isn't on that terminal's PATH. Windows only reads PATH when a process starts, so open a new terminal after installing tools.
+
+**Step 0.1 status:** ✅ Done.
+
+### Step 0.1a: Add `.gitignore` (2026-10-20)
+
+**Goal:** Keep build output, virtual environments, caches and secrets out of Git from the very first code commit.
+
+**Files changed:** `.gitignore` (new).
+
+**What it ignores:**
+- **Java/Maven:** `target/`, `*.class`, `*.jar` (except the Maven wrapper jar), JVM crash logs.
+- **Python:** `.venv/`, `__pycache__/`, `*.pyc`, pytest/mypy/ruff caches, coverage output, packaging folders.
+- **Secrets:** `.env` and `.env.*`, but `.env.example` stays tracked (`!` re-includes a file).
+- **IDE/OS:** `.idea/`, `.vscode/`, `Thumbs.db`, `.DS_Store`.
+- **Word:** `~$*.docx` lock files and `*-old.docx` backups.
+
+**Result:** `git status` shows `?? .gitignore` (new, untracked) and `M BUILD_LOG.md`. Nothing that should be tracked is ignored. Not committed yet.
+
+**Learned:** A `!pattern` line un-ignores something an earlier line matched. Order matters, because the last matching line wins. `.gitignore` only affects untracked files; a file that is already committed must be removed with `git rm --cached` before ignoring takes effect.
