@@ -22,7 +22,7 @@ class ProductTest {
 
   @Test
   void noArgsConstructorAlsoDefaultsToActiveStatus() {
-    // Jackson uses this constructor (then setters) when JSON is deserialized
+    // JPA uses this constructor when it loads rows
     assertThat(new Product().getStatus()).isEqualTo(ProductStatus.ACTIVE);
   }
 

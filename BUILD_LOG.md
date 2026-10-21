@@ -39,7 +39,8 @@ Each step is explained and approved before it runs.
 | 3.4 | Swap to database repository | ✅ Done | 2026-10-21 |
 | 3.5 | Seed sample data | ⏳ Pending | |
 | 3.6 | Repository tests with Testcontainers | ✅ Done for products | 2026-10-21 |
-| 4.1 | Request/response models (DTOs) | ⏳ Pending | |
+| 4.1 | Request/response models (DTOs), entity kept internal | ✅ Done for products | 2026-10-21 |
+| 4.1a | Same JSON formats in both apps: price as 2-decimal string, UTC timestamps with Z | ✅ Done | 2026-10-21 |
 | 4.2 | Input validation | ⏳ Pending | |
 | 4.3 | Uniform error format | ⏳ Pending | |
 | 4.4 | Central error handling | ⏳ Pending | |
@@ -1294,5 +1295,92 @@ The version string shows two different servers: the Windows install vs the Debia
 - `ddl-auto: validate` is a free safety net: a column name or type typo in the entity stops startup instead of failing on a later query.
 - With soft deletes, **unique keys are never freed**. Test flows and fixtures need fresh values (`TST-<timestamp>`) or a cleanup step (`clean_products`, the day-1 reload).
 - IntelliJ + DevTools reloads from `target/classes`. Running `mvn clean` while the IDE app runs makes it reload whatever the build leaves there.
+
+**Not committed yet.**
+
+### Step 4.1: Request/response models (DTOs); entities stay internal (2026-10-21)
+
+**Requested by the user:** All JPA entity objects were exposed as API responses. Create separate request/response classes and keep the JPA entity model separate, in both apps.
+
+**Why it matters:** with the entity as the JSON, internal fields leak out (`version`), a client can send fields it shouldn't control (`id`, `version`), and any database change silently changes the API.
+
+#### Java: new package `product/web/dto`
+
+| Record | Role |
+|---|---|
+| `CreateProductRequest(sku, name, description, price, status, categoryId)` | POST body; `toProduct()` builds an unsaved entity (description defaults to `""`, status to ACTIVE) |
+| `UpdateProductRequest(name, description, price, status)` | PUT body (no SKU); `toUpdate()` → the service's `ProductUpdate` |
+| `ProductResponse(id, sku, name, description, price, status, categoryId, createdAt, updatedAt)` | Response; `from(Product)`; **no `version`** |
+
+- `ProductController` accepts and returns only DTOs; the entity stays in service + repository.
+- Mapping is hand-written (the guide's MapStruct is an option for larger models).
+- `Product.java` comments updated: JSON no longer touches the entity.
+- Tests: `ProductApiIntegrationTest` now asserts `$.version` **doesNotExist** and `createdAt` exists. `ProductControllerTest` +2: the response has no internal fields and gets defaults; a POST with `"id": 99, "version": 5` reaches the service as id/version **null**. **43 tests** ✅ + coverage gate.
+
+#### Python: new `product/schemas.py`
+
+| Model | Role |
+|---|---|
+| `ApiModel` | Base: `alias_generator=to_camel`, `populate_by_name=True`, so JSON is **camelCase like Java**, and snake_case is accepted too |
+| `ProductCreateRequest` | POST body; `to_product()` → `Product` dataclass |
+| `ProductUpdateRequest` | PUT body; `to_update()` → `ProductUpdate` |
+| `ProductResponse` | `from_attributes=True`, so `ProductResponse.model_validate(product)` reads the dataclass; **no `version`** |
+
+- `router.py` uses only the schemas.
+- Tests +3: the exact response field set (camelCase, no version); `id`/`version` in a POST are ignored; snake_case `category_id` is accepted. The DB round-trip test asserts `version` is absent. **56 tests** ✅, 100%.
+
+#### Live comparison (`GET /api/v1/products/8` from both apps, local DB)
+
+```
+JAVA   {"id":8,"sku":"ELE-3002","name":"Mechanical keyboard","description":"Tenkeyless, brown switches","price":89.90,"status":"ACTIVE","categoryId":3,"createdAt":"2026-10-21T12:14:00Z","updatedAt":"2026-10-21T16:00:00Z"}
+PYTHON {"id":8,"sku":"ELE-3002","name":"Mechanical keyboard","description":"Tenkeyless, brown switches","price":"89.90","status":"ACTIVE","categoryId":3,"createdAt":"2026-10-21T07:14:00-05:00","updatedAt":"2026-10-21T11:00:00-05:00"}
+```
+
+- **Identical field names and order**; `version` exposed by neither.
+- Postman on both: 10 requests, 19 assertions, 0 failed. Day-1 data reset afterwards (12 products).
+
+**Remaining value-format differences (same values; open for a decision):**
+
+| Field | Java | Python |
+|---|---|---|
+| `price` | JSON number `89.90` | JSON string `"89.90"` (Pydantic keeps Decimal exact as text) |
+| timestamps | UTC `…Z` | the DB session's time zone `…-05:00` |
+
+**Learned:**
+- **DTOs are the API contract.** The entity and the ORM row can now change (new columns, renames) without clients noticing, and clients can't set fields like `version` or `id`.
+- Unknown JSON fields are ignored by default in both stacks (Spring Boot sets Jackson's FAIL_ON_UNKNOWN_PROPERTIES off; Pydantic's default `extra="ignore"`). Stage 4.2 validation can make that strict if wanted.
+- Pydantic `alias_generator=to_camel` is the one-line way to match Java/JavaScript naming conventions while keeping snake_case in Python code.
+
+**Not committed yet.**
+
+### Step 4.1a: Identical JSON formats: price as a string, UTC timestamps (2026-10-21)
+
+**Requested by the user:** Both apps return `price` as a string like `"89.90"` and all timestamps in UTC with a `Z` suffix.
+
+**Changes (response DTOs only; requests still accept `"12.50"` or `12.50`):**
+
+| | Java `ProductResponse` | Python `schemas.py` |
+|---|---|---|
+| Price | `@JsonFormat(shape = STRING)` + `setScale(2, HALF_UP)` in `from(...)` | `Money = Annotated[Decimal, PlainSerializer(_money)]`, `quantize(0.01, ROUND_HALF_UP)` → str |
+| Timestamps | Already right: `Instant` is always UTC, written as `…Z` | `UtcDateTime = Annotated[datetime, PlainSerializer(_utc_iso)]`: `astimezone(UTC)`, `+00:00` → `Z` |
+
+**Edge case handled:** a client sending `"14.5"` now gets `"14.50"` back. Without the explicit scale, Java's POST response (the saved entity, not re-read) would have said `"14.5"` while the column stores `14.50`.
+
+**Tests:**
+- Java: `ProductControllerTest` +1 (price `"14.50"` from `14.5`, `createdAt` exactly `2026-10-21T12:14:00Z`); `price` assertions changed to strings; the integration test checks `"11.25"` and `createdAt` ends with `Z`. **44 tests** ✅.
+- Python: **new `tests/product/test_schemas.py`** (07:14 at −05:00 → `2026-10-21T12:14:00Z`, microseconds kept, price `"14.50"`, `None` timestamps stay null); router test for `"14.5"` → `"14.50"`; the DB round trip asserts a `Z` timestamp. **59 tests** ✅, 100%.
+
+**Live comparison** (`GET /api/v1/products/8`, local DB): Java and Python responses are **byte-for-byte identical**:
+
+```
+{"id":8,"sku":"ELE-3002","name":"Mechanical keyboard","description":"Tenkeyless, brown switches","price":"89.90","status":"ACTIVE","categoryId":3,"createdAt":"2026-10-21T12:14:00Z","updatedAt":"2026-10-21T16:00:00Z"}
+```
+
+Postman: 10 requests, 19 assertions, 0 failed on both. Day-1 data reset afterwards.
+
+**Learned:**
+- **Money as a JSON string** avoids clients (especially JavaScript) parsing it into a binary float. Many payment APIs do this.
+- Python's `datetime.isoformat()` writes `+00:00`, not `Z`. Java's `Instant` writes `Z`. Normalising in the serializer, not in the database session, keeps it independent of the DB's time zone setting.
+- Jackson 3 (`tools.jackson.*`) still uses the **old annotation package** `com.fasterxml.jackson.annotation` (jackson-annotations 2.21), so existing `@JsonFormat` code keeps working.
 
 **Not committed yet.**

@@ -21,6 +21,7 @@ import com.example.ecommerce.product.model.ProductStatus;
 import com.example.ecommerce.product.model.ProductUpdate;
 import com.example.ecommerce.product.service.ProductService;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -55,7 +56,7 @@ class ProductControllerTest {
         .perform(get("/api/v1/products"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].sku").value("MUG-1"))
-        .andExpect(jsonPath("$[0].price").value(9.99));
+        .andExpect(jsonPath("$[0].price").value("9.99"));
   }
 
   @Test
@@ -95,6 +96,57 @@ class ProductControllerTest {
     ArgumentCaptor<Product> received = ArgumentCaptor.forClass(Product.class);
     verify(service).create(received.capture());
     assertThat(received.getValue().getStatus()).isEqualTo(ProductStatus.ACTIVE);
+  }
+
+  @Test
+  void responseIsTheDtoWithoutInternalFields() throws Exception {
+    Product entity = mug().toBuilder().version(3L).build();
+    when(service.get(1L)).thenReturn(entity);
+
+    mockMvc
+        .perform(get("/api/v1/products/1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.sku").value("MUG-1"))
+        .andExpect(jsonPath("$.status").value("ACTIVE"))
+        .andExpect(jsonPath("$.description").value(""))
+        .andExpect(jsonPath("$.version").doesNotExist());
+  }
+
+  @Test
+  void priceIsAStringWithTwoDecimalsAndTimestampsAreUtc() throws Exception {
+    Product entity =
+        mug().toBuilder()
+            .price(new BigDecimal("14.5"))
+            .createdAt(Instant.parse("2026-10-21T12:14:00Z"))
+            .build();
+    when(service.get(1L)).thenReturn(entity);
+
+    mockMvc
+        .perform(get("/api/v1/products/1"))
+        .andExpect(jsonPath("$.price").value("14.50"))
+        .andExpect(jsonPath("$.createdAt").value("2026-10-21T12:14:00Z"));
+  }
+
+  @Test
+  void createIgnoresFieldsTheClientMayNotSet() throws Exception {
+    when(service.create(any())).thenReturn(mug());
+
+    mockMvc
+        .perform(
+            post("/api/v1/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"id": 99, "version": 5, "sku": "MUG-1", "name": "Mug", "price": 9.99}
+                    """))
+        .andExpect(status().isCreated());
+
+    // id and version are not fields of CreateProductRequest, so they never reach the entity
+    ArgumentCaptor<Product> received = ArgumentCaptor.forClass(Product.class);
+    verify(service).create(received.capture());
+    assertThat(received.getValue().getId()).isNull();
+    assertThat(received.getValue().getVersion()).isNull();
+    assertThat(received.getValue().getDescription()).isEmpty();
   }
 
   @Test

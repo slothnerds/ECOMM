@@ -26,6 +26,35 @@ def fresh_store() -> Iterator[None]:
     app.dependency_overrides.clear()
 
 
+def test_response_is_the_schema_with_camel_case_and_no_internal_fields(client: TestClient) -> None:
+    created = client.post("/api/v1/products", json={**MUG, "categoryId": 3}).json()
+
+    assert set(created) == {
+        "id", "sku", "name", "description", "price", "status",
+        "categoryId", "createdAt", "updatedAt",
+    }  # fmt: skip
+    assert created["categoryId"] == 3
+    assert (created["description"], created["status"]) == ("", "ACTIVE")
+
+
+def test_price_is_a_two_decimal_string(client: TestClient) -> None:
+    created = client.post("/api/v1/products", json={**MUG, "price": "14.5"}).json()
+
+    assert created["price"] == "14.50"
+
+
+def test_create_ignores_fields_the_client_may_not_set(client: TestClient) -> None:
+    created = client.post("/api/v1/products", json={**MUG, "id": 99, "version": 5}).json()
+
+    assert created["id"] == 1  # assigned by the store, not taken from the request
+
+
+def test_snake_case_is_accepted_too(client: TestClient) -> None:
+    created = client.post("/api/v1/products", json={**MUG, "category_id": 4}).json()
+
+    assert created["categoryId"] == 4
+
+
 def test_list_is_empty_at_first(client: TestClient) -> None:
     response = client.get("/api/v1/products")
 
@@ -108,4 +137,7 @@ def test_round_trip_through_the_database(client: TestClient) -> None:
 
     assert client.delete(f"/api/v1/products/{product_id}").status_code == 204
     after = client.get(f"/api/v1/products/{product_id}").json()
-    assert (after["status"], after["version"]) == ("DISCONTINUED", 1)
+    # Timestamps from the database are written in UTC with a Z suffix, like the Java app
+    assert after["createdAt"].endswith("Z") and "+" not in after["createdAt"]
+    assert after["status"] == "DISCONTINUED"
+    assert "version" not in after  # internal field, not part of the API contract

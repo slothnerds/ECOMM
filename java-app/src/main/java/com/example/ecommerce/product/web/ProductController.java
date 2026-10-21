@@ -1,8 +1,10 @@
 package com.example.ecommerce.product.web;
 
 import com.example.ecommerce.product.model.Product;
-import com.example.ecommerce.product.model.ProductUpdate;
 import com.example.ecommerce.product.service.ProductService;
+import com.example.ecommerce.product.web.dto.CreateProductRequest;
+import com.example.ecommerce.product.web.dto.ProductResponse;
+import com.example.ecommerce.product.web.dto.UpdateProductRequest;
 import java.net.URI;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Product CRUD endpoints: thin, they only translate HTTP to service calls.
  *
- * <p>Stage 2 exposes the model classes directly; Stage 4 introduces request/response DTOs.
+ * <p>Requests and responses are DTOs (package {@code dto}); the JPA entity never leaves the
+ * service, so database details can change without changing the API, and vice versa.
  */
 @RestController
 @RequestMapping("/api/v1/products")
@@ -29,28 +32,29 @@ public class ProductController {
   private final ProductService service;
 
   @GetMapping
-  public List<Product> list() {
-    return service.list();
+  public List<ProductResponse> list() {
+    return service.list().stream().map(ProductResponse::from).toList();
   }
 
   @GetMapping("/{id}")
-  public Product get(@PathVariable long id) {
-    return service.get(id);
+  public ProductResponse get(@PathVariable long id) {
+    return ProductResponse.from(service.get(id));
   }
 
   /** 201 Created with a Location header pointing at the new product. */
   @PostMapping
-  public ResponseEntity<Product> create(@RequestBody Product product) {
-    Product created = service.create(product);
-    return ResponseEntity.created(URI.create("/api/v1/products/" + created.getId())).body(created);
+  public ResponseEntity<ProductResponse> create(@RequestBody CreateProductRequest request) {
+    Product created = service.create(request.toProduct());
+    return ResponseEntity.created(URI.create("/api/v1/products/" + created.getId()))
+        .body(ProductResponse.from(created));
   }
 
   @PutMapping("/{id}")
-  public Product update(@PathVariable long id, @RequestBody ProductUpdate update) {
-    return service.update(id, update);
+  public ProductResponse update(@PathVariable long id, @RequestBody UpdateProductRequest request) {
+    return ProductResponse.from(service.update(id, request.toUpdate()));
   }
 
-  /** 204 No Content: success, nothing to return. */
+  /** Soft delete: the product becomes DISCONTINUED (204 No Content). */
   @DeleteMapping("/{id}")
   public ResponseEntity<Void> delete(@PathVariable long id) {
     service.delete(id);

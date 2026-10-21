@@ -1,14 +1,10 @@
 name: java-dev
 values:
   - key: baseUrl
-    value: http://localhost:8080
-    enabled: true
+    value: 'http://localhost:8080'
   - key: app
     value: Spring Boot
-    enabled: true
   - key: sku
     value: MUG-1
-    enabled: true
   - key: productId
     value: ''
-    enabled: true

@@ -1,5 +1,6 @@
 package com.example.ecommerce.product.web;
 
+import static org.hamcrest.Matchers.endsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -36,7 +37,11 @@ class ProductApiIntegrationTest {
             .perform(post("/api/v1/products").contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.status").value("ACTIVE"))
-            .andExpect(jsonPath("$.version").value(0))
+            // The DTO is the contract: internal fields like the entity's version are not exposed
+            .andExpect(jsonPath("$.version").doesNotExist())
+            // Formats shared with the Python app: price as a 2-decimal string, UTC timestamps
+            .andExpect(jsonPath("$.price").value("11.25"))
+            .andExpect(jsonPath("$.createdAt").value(endsWith("Z")))
             .andReturn()
             .getResponse()
             .getHeader("Location");
@@ -44,7 +49,7 @@ class ProductApiIntegrationTest {
     mockMvc
         .perform(get("/api/v1/products"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$[?(@.sku == 'INT-1')].price").value(11.25));
+        .andExpect(jsonPath("$[?(@.sku == 'INT-1')].price").value("11.25"));
 
     // Same SKU again: the service finds it in the database
     mockMvc
@@ -56,7 +61,6 @@ class ProductApiIntegrationTest {
     mockMvc
         .perform(get(location))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.status").value("DISCONTINUED"))
-        .andExpect(jsonPath("$.version").value(1));
+        .andExpect(jsonPath("$.status").value("DISCONTINUED"));
   }
 }

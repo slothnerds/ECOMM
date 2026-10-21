@@ -33,10 +33,10 @@ import org.hibernate.annotations.UpdateTimestamp;
 @Getter
 @Setter
 @Builder(toBuilder = true)
-// JPA needs a no-args constructor; Jackson also uses it (then setters) for JSON request bodies
+// JPA needs a no-args constructor
 @NoArgsConstructor
-// Private: only the builder uses it. If public, Jackson 3 would build products from JSON through
-// this constructor and pass null for fields missing from the JSON, skipping the defaults below.
+// Private: only the builder uses it. (The entity is never read from or written to JSON; the API
+// uses the DTOs in product.web.dto.)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @ToString
 public class Product {
