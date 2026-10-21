@@ -4,6 +4,8 @@ This log tracks the dual-stack build (Java 25 / Spring Boot 4.x and Python 3.15 
 It follows the step numbers in the build guide (`ecommerce_poc_dual_stack_build_guide.docx`).
 Each step is explained and approved before it runs.
 
+> **Folder names:** since 2026-10-21 the apps live in `ecomm-java-app/` and `ecomm-py-app/` (Step 4.1b). Entries before that say `java-app/` and `python-app/`.
+
 **Status key:** ✅ Done · ▶️ Next · ⏳ Pending · ⏭️ Skipped
 
 ## Progress
@@ -41,6 +43,7 @@ Each step is explained and approved before it runs.
 | 3.6 | Repository tests with Testcontainers | ✅ Done for products | 2026-10-21 |
 | 4.1 | Request/response models (DTOs), entity kept internal | ✅ Done for products | 2026-10-21 |
 | 4.1a | Same JSON formats in both apps: price as 2-decimal string, UTC timestamps with Z | ✅ Done | 2026-10-21 |
+| 4.1b | Folders renamed: `java-app` → `ecomm-java-app`, `python-app` → `ecomm-py-app` | ✅ Done | 2026-10-21 |
 | 4.2 | Input validation | ⏳ Pending | |
 | 4.3 | Uniform error format | ⏳ Pending | |
 | 4.4 | Central error handling | ⏳ Pending | |
@@ -1384,3 +1387,28 @@ Postman: 10 requests, 19 assertions, 0 failed on both. Day-1 data reset afterwar
 - Jackson 3 (`tools.jackson.*`) still uses the **old annotation package** `com.fasterxml.jackson.annotation` (jackson-annotations 2.21), so existing `@JsonFormat` code keeps working.
 
 **Not committed yet.**
+
+### Step 4.1b: App folders renamed (2026-10-21)
+
+**Requested by the user:** `java-app` → **`ecomm-java-app`**, `python-app` → **`ecomm-py-app`**.
+
+**Done:**
+- The user closed IntelliJ, PyCharm and VS Code first (open IDEs lock folders on Windows and keep pointing at old paths).
+- `Rename-Item` for both folders. `python-app` first failed with "being used by another process": **Claude's own shell** still had its working directory inside it. After `cd` out, the rename worked.
+- **References updated:** `.pre-commit-config.yaml` (`files: ^ecomm-py-app/`, `^ecomm-java-app/…`, `cd ecomm-java-app`) and the docstring and comments in `core/config.py`.
+- **No change needed:** the Java `TestcontainersConfiguration` (`../db/scripts/...`) and Python `conftest.py` (`parents[2] / "db"`) use relative paths; `db/docker-compose.yml`, Postman and `http/` don't mention the folders. The uv project/package name stays `ecommerce`.
+- **Python `.venv` rebuilt** (`rm -rf .venv && uv sync --frozen`): the old one had absolute paths to `...\python-app\src` in `ecommerce.pth` and in its launcher `.exe` files.
+- Stale `.coverage` deleted. `.idea/` files left untouched (IDE state).
+
+**Verification:**
+- Java `clean verify` → **44 tests** ✅ + coverage gate.
+- Python ruff/format/mypy + **59 tests** ✅ (100%).
+- `pre-commit run` on one file per app → ruff check, ruff format and spotless check (ecomm-java-app) all **Passed**.
+
+**When reopening the IDEs:**
+- IntelliJ: **File → Open → `D:\ClaudeWS\ECOMM\ecomm-java-app`** (it re-imports the Maven project).
+- PyCharm: **File → Open → `D:\ClaudeWS\ECOMM\ecomm-py-app`**, then **Settings → Python Interpreter → Add → existing → `ecomm-py-app\.venv\Scripts\python.exe`** (the old interpreter entry points at the deleted `python-app\.venv`). Run configurations: working directory `D:\ClaudeWS\ECOMM\ecomm-py-app`.
+
+**Learned:** On Windows a folder can't be renamed while **any** process has it as its current directory or holds a file in it open: IDEs, terminals, even a shell's `cd`. Virtual environments aren't relocatable (absolute paths inside), so after moving a project, rebuild `.venv` from the lock file.
+
+**Not committed yet.** For Git it's a move; `git add -A` records it as renames.

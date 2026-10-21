@@ -2,8 +2,8 @@
 
 Values come from, in order of priority:
 1. real environment variables
-2. python-app/.env.<profile>  (database settings; profile from APP_PROFILE: local | docker)
-3. python-app/.env            (settings shared by every profile)
+2. ecomm-py-app/.env.<profile>  (database settings; profile from APP_PROFILE: local | docker)
+3. ecomm-py-app/.env            (settings shared by every profile)
 4. the defaults below
 
 Pydantic validates them when Settings() is created, so a bad value stops startup.
@@ -22,7 +22,7 @@ Profile = Literal["local", "docker"]
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        # Relative to the working directory, so start the app from python-app/.
+        # Relative to the working directory, so start the app from ecomm-py-app/.
         # get_settings() adds the profile file on top of this.
         env_file=".env",
         env_file_encoding="utf-8",
