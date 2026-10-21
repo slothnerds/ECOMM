@@ -1,0 +1,31 @@
+$kind: http-request
+description: 201 Created. A pre-request script picks a new SKU each run (products are only soft-deleted, so SKUs are never freed). Stores the new id in {{productId}}.
+url: "{{baseUrl}}/api/v1/products"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "sku": "{{sku}}",
+      "name": "Coffee mug",
+      "description": "Ceramic, 350 ml",
+      "price": "12.50"
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      // Soft-deleted products keep their SKU, so use a fresh one for every run
+      pm.environment.set("sku", `TST-${Date.now()}`);
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", () => pm.response.to.have.status(201));
+      const product = pm.response.json();
+      pm.environment.set("productId", product.id);
+      pm.test("Location header points at the new product", () =>
+        pm.expect(pm.response.headers.get("Location")).to.eql(`/api/v1/products/${product.id}`));
+      pm.test("New products are ACTIVE", () => pm.expect(product.status).to.eql("ACTIVE"));
+    language: text/javascript
+order: 2000

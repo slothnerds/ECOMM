@@ -1,0 +1,14 @@
+name: python-dev
+values:
+  - key: baseUrl
+    value: http://localhost:8000
+    enabled: true
+  - key: app
+    value: FastAPI
+    enabled: true
+  - key: sku
+    value: MUG-1
+    enabled: true
+  - key: productId
+    value: ''
+    enabled: true

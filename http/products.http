@@ -1,0 +1,51 @@
+### Product CRUD. Switch @host between the two apps; both behave the same.
+### Data lives in PostgreSQL (profile local = 5433, docker = 5432): the day-1 catalog has 12 products.
+### Delete is a soft delete, so SKUs are never freed: change @sku before re-running create.
+
+@host = http://localhost:8080
+# @host = http://localhost:8000
+@sku = TST-1001
+
+### 1. List products (the 12 day-1 products first)
+GET {{host}}/api/v1/products
+
+### 2. Create a product: 201 Created + Location header
+POST {{host}}/api/v1/products
+Content-Type: application/json
+
+{
+  "sku": "{{sku}}",
+  "name": "Coffee mug",
+  "description": "Ceramic, 350 ml",
+  "price": "12.50"
+}
+
+### 3. Same SKU again: 409 Conflict
+POST {{host}}/api/v1/products
+Content-Type: application/json
+
+{
+  "sku": "{{sku}}",
+  "name": "Another mug",
+  "price": "9.99"
+}
+
+### 4. Get one by id: 200 (id 1 is the day-1 coffee mug; use the id from step 2 for yours)
+GET {{host}}/api/v1/products/1
+
+### 5. Update name, price and status (the SKU can't change): 200. Put your product's id here
+PUT {{host}}/api/v1/products/13
+Content-Type: application/json
+
+{
+  "name": "Large coffee mug",
+  "description": "Ceramic, 500 ml",
+  "price": "14.50",
+  "status": "ACTIVE"
+}
+
+### 6. Delete (soft delete -> status DISCONTINUED): 204 No Content
+DELETE {{host}}/api/v1/products/13
+
+### 7. Get after delete: 200, status DISCONTINUED
+GET {{host}}/api/v1/products/13

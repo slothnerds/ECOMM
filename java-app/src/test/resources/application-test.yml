@@ -1,0 +1,6 @@
+# Active in tests annotated with @ActiveProfiles("test").
+# Fixed values so tests never depend on the dev profile's settings.
+app:
+  environment: test
+  jwt-secret: test-secret-that-is-at-least-32-characters-long
+  hold-duration: PT15M

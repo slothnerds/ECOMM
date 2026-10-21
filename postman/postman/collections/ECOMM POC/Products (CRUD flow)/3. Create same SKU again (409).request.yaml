@@ -1,0 +1,19 @@
+$kind: http-request
+description: SKUs are unique, so this must fail with 409 Conflict.
+url: "{{baseUrl}}/api/v1/products"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "sku": "{{sku}}",
+      "name": "Another mug",
+      "price": "9.99"
+    }
+scripts:
+  - type: afterResponse
+    code: pm.test("Status is 409", () => pm.response.to.have.status(409));
+    language: text/javascript
+order: 3000

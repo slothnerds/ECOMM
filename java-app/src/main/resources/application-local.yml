@@ -1,0 +1,8 @@
+# Profile "local" (the default): PostgreSQL installed on this machine.
+# Create the database, schema and tables once with db/scripts/ecomm-setup.sql (sample data: db/scripts/day1-sample-data.sql).
+# LOCAL DEV values only, committed on purpose for this POC.
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:ecomm_db}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:password}

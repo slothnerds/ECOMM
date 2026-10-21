@@ -1,0 +1,8 @@
+# Profile "docker": PostgreSQL from db/docker-compose.yml (start it with: docker compose -f db/docker-compose.yml up -d).
+# Activate with: SPRING_PROFILES_ACTIVE=docker
+# LOCAL DEV values only, committed on purpose for this POC.
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ecomm_db}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:password}

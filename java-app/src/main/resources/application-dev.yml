@@ -1,0 +1,11 @@
+# Active when the "dev" profile is on (the default, see application.yml).
+# LOCAL DEV values only, committed on purpose for this POC. An environment variable with the
+# same name (e.g. JWT_SECRET) still overrides each ${NAME:default}.
+app:
+  environment: dev
+  jwt-secret: ${JWT_SECRET:dev-only-jwt-secret-change-me-0123456789}
+  hold-duration: ${HOLD_DURATION:PT15M}
+
+logging:
+  level:
+    com.example.ecommerce: DEBUG

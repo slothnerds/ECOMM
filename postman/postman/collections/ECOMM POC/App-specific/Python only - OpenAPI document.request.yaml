@@ -1,0 +1,12 @@
+$kind: http-request
+description: FastAPI's API contract (browsable at {{baseUrl}}/docs). Returns 404 against the Java app.
+url: "{{baseUrl}}/openapi.json"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      const expected = pm.environment.get("app") === "FastAPI" ? 200 : 404;
+      pm.test(`Status is ${expected} for ${pm.environment.get("app")}`, () =>
+        pm.response.to.have.status(expected));
+    language: text/javascript
+order: 2000

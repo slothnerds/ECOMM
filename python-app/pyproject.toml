@@ -1,0 +1,82 @@
+[project]
+name = "ecommerce"
+version = "0.1.0"
+description = "E-Commerce POC (FastAPI)"
+readme = "README.md"
+authors = [
+    { name = "Surya Verma", email = "vermaksurya@gmail.com" }
+]
+requires-python = ">=3.15"
+dependencies = [
+    "fastapi>=0.153.0",
+    "psycopg[binary]>=3.3.6",
+    "pydantic-settings>=2.16.1",
+    "sqlalchemy>=2.1.5",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+ecommerce = "ecommerce.main:run"
+
+[build-system]
+requires = ["uv_build>=0.13.3,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.15.1",
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.1",
+    "testcontainers[postgres]>=4.15.0",
+]
+
+# ---- Code quality (Step 0.3) ----
+[tool.ruff]
+line-length = 100
+target-version = "py315"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# E/W: pycodestyle, F: pyflakes (real bugs), I: import order, UP: modern syntax,
+# B: bugbear (likely bugs), SIM: simplifications, N: naming conventions
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "N"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's Depends()/Query() as default arguments is intended, not a bug
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header", "fastapi.Path"]
+
+[tool.mypy]
+python_version = "3.15"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# -ra: summary of skipped/failed tests; --strict-markers: typos in markers are errors
+# --cov: measure coverage of the ecommerce package on every run (settings below)
+addopts = "-ra --strict-markers --cov=ecommerce --cov-report=term-missing --cov-report=html"
+
+[tool.coverage.run]
+# Also measure branches (both sides of every if), not just lines
+branch = true
+source = ["ecommerce"]
+
+[tool.coverage.report]
+# Gate: pytest fails below 80% (lines and branches combined)
+fail_under = 80
+show_missing = true
+skip_covered = false
+exclude_also = [
+    # The dev-server launcher is run by hand, not by tests
+    # Regexes; single-quoted TOML strings keep backslashes literally
+    'def run\(\) -> None:',
+    'if TYPE_CHECKING:',
+]

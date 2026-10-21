@@ -1,0 +1,65 @@
+# Base configuration, shared by every profile.
+# ${JWT_SECRET} has no default here, so outside the dev profile it MUST come from an environment
+# variable. Dev values live in application-dev.yml.
+spring:
+  application:
+    name: ecommerce
+  profiles:
+    # Used when SPRING_PROFILES_ACTIVE is not set. Pick the database with:
+    #   local  = PostgreSQL installed on this machine (localhost:5433)
+    #   docker = PostgreSQL from db/docker-compose.yml (localhost:5432)
+    default: local
+    # Each database profile also switches on the shared dev settings
+    group:
+      local: dev
+      docker: dev
+  # The connection (url, user, password) comes from the profile: application-local.yml / -docker.yml
+  datasource:
+    hikari:
+      # Fail at startup when the database is unreachable instead of on the first request
+      initialization-fail-timeout: 1
+      # Wait at most 5 s for a connection (default 30 s), so an outage shows up quickly
+      connection-timeout: 5000
+  jpa:
+    # Don't keep a database session open while the HTTP response is being written
+    open-in-view: false
+    hibernate:
+      # The schema is owned by db/scripts/ecomm-setup.sql: Hibernate only checks, never changes it
+      ddl-auto: validate
+    properties:
+      hibernate:
+        # Tables live in schema ecomm (db/scripts/ecomm-setup.sql)
+        default_schema: ecomm
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      # Serve Actuator endpoints at the root (/health, /info) instead of /actuator/*,
+      # so both apps share the same paths
+      base-path: /
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      # List the checks (e.g. "db") in /health, without connection details
+      show-components: always
+  info:
+    env:
+      # Publish the info.* keys below on /info
+      enabled: true
+
+info:
+  app:
+    name: ${spring.application.name}
+    description: E-Commerce POC (Spring Boot)
+    version: 0.0.1-SNAPSHOT
+    java: ${java.version}
+
+# Our own settings, bound to com.example.ecommerce.core.config.AppProperties
+app:
+  environment: ${APP_ENV:dev}
+  jwt-secret: ${JWT_SECRET}
+  hold-duration: ${HOLD_DURATION:PT15M}

@@ -1,0 +1,12 @@
+$kind: http-request
+description: Actuator /info. Returns 404 against the Python app.
+url: "{{baseUrl}}/info"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      const expected = pm.environment.get("app") === "Spring Boot" ? 200 : 404;
+      pm.test(`Status is ${expected} for ${pm.environment.get("app")}`, () =>
+        pm.response.to.have.status(expected));
+    language: text/javascript
+order: 1000

@@ -1,0 +1,26 @@
+$kind: http-request
+description: Changes name, description, price, status. The SKU can't change.
+url: "{{baseUrl}}/api/v1/products/{{productId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Large coffee mug",
+      "description": "Ceramic, 500 ml",
+      "price": "14.50",
+      "status": "ACTIVE"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      const product = pm.response.json();
+      pm.test("Name changed", () => pm.expect(product.name).to.eql("Large coffee mug"));
+      pm.test("SKU unchanged", () => pm.expect(product.sku).to.eql(pm.environment.get("sku")));
+      // Java returns price as a number (14.5), Python as a string ("14.50")
+      pm.test("Price is 14.50", () => pm.expect(Number(product.price)).to.eql(14.5));
+    language: text/javascript
+order: 5000

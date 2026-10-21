@@ -1,0 +1,17 @@
+### Shared requests for both apps.
+### Run from IntelliJ (built-in HTTP client) or VS Code (REST Client extension).
+
+@java = http://localhost:8080
+@python = http://localhost:8000
+
+### Java (Spring Boot) health
+GET {{java}}/health
+
+### Python (FastAPI) health
+GET {{python}}/health
+
+### Java app info (Actuator /info)
+GET {{java}}/info
+
+### Python OpenAPI document (what /docs is built from)
+GET {{python}}/openapi.json

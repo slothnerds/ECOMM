@@ -1,0 +1,23 @@
+# Runs on every `git commit` against the staged files (Step 0.3).
+# Install once per clone:  pre-commit install
+# Run on everything:       pre-commit run --all-files
+repos:
+  # Python: lint + format with ruff (settings come from python-app/pyproject.toml)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.1
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: ^python-app/
+      - id: ruff-format
+        files: ^python-app/
+
+  # Java: verify google-java-format via Spotless (fix with: cd java-app && ./mvnw spotless:apply)
+  - repo: local
+    hooks:
+      - id: spotless-check
+        name: spotless check (java-app)
+        language: system
+        entry: bash -c 'cd java-app && ./mvnw -q -B spotless:check'
+        files: ^java-app/.*\.java$
+        pass_filenames: false

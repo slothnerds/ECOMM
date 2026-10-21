@@ -1,0 +1,35 @@
+# Optional PostgreSQL in Docker for the "docker" profile (port 5432).
+# The default "local" profile uses the PostgreSQL installed on this machine (port 5433).
+# Credentials are LOCAL DEV values only, committed on purpose for this POC.
+# Run these from this folder (db/), or add -f db/docker-compose.yml from the repo root:
+# Start:  docker compose up -d
+# Stop:   docker compose down        (keeps data)
+# Reset:  docker compose down -v     (deletes the data volume; the scripts run again)
+name: ecomm
+
+services:
+  postgres:
+    image: postgres:18
+    container_name: ecomm-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      # PostgreSQL 18 images keep data under /var/lib/postgresql/<version>/,
+      # so the volume mounts one level higher than in older images.
+      - pgdata:/var/lib/postgresql
+      # On first start (empty volume) the image runs these in name order: the same files used
+      # for the local Postgres (database + schema + tables, then the day-1 sample data)
+      - ./scripts/ecomm-setup.sql:/docker-entrypoint-initdb.d/01-ecomm-setup.sql:ro
+      - ./scripts/day1-sample-data.sql:/docker-entrypoint-initdb.d/02-day1-sample-data.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:

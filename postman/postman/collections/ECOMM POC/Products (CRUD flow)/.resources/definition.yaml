@@ -1,0 +1,3 @@
+$kind: collection
+description: Run the folder top to bottom (Runner) or request by request. Create saves the new id in the productId environment variable; later requests use it. Delete is a soft delete (status DISCONTINUED), and each run uses a new SKU, so the flow can be re-run. Each run leaves one DISCONTINUED test product in the database; reload db/scripts/day1-sample-data.sql to reset.
+order: 2000

@@ -1,0 +1,12 @@
+$kind: http-request
+description: After the soft delete the product is still readable, with status DISCONTINUED (spec rule SN-4).
+url: "{{baseUrl}}/api/v1/products/{{productId}}"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("Product is DISCONTINUED", () =>
+        pm.expect(pm.response.json().status).to.eql("DISCONTINUED"));
+    language: text/javascript
+order: 7000
