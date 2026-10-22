@@ -15,7 +15,7 @@ Each step is explained and approved before it runs.
 | 0.1 | Verify toolchains (JDK, Maven, Python, uv, Git, Docker) | ✅ Done | 2026-10-20 |
 | 0.1a | Add `.gitignore` for both stacks | ✅ Done | 2026-10-20 |
 | 0.2 | Start shared PostgreSQL with Docker Compose | ✅ Done (postgres:18) | 2026-10-20 |
-| 0.2b | Single shared DB `ecomm_db` + pgAdmin web portal | ✅ Done | 2026-10-20 |
+| 0.2b | Single shared DB `ecomm_db` + pgAdmin web portal (pgAdmin removed again in 2.12) | ✅ Done | 2026-10-20 |
 | 1.1 | Create both projects with domain packages (done before 0.3) | ✅ Done | 2026-10-20 |
 | 1.1b | Upgrade FastAPI 0.153.0 → 0.154.0 | ✅ Done | 2026-10-20 |
 | 0.3 | Code quality tools (Spotless, ruff, mypy, pre-commit) | ✅ Done (after 1.1) | 2026-10-20 |
@@ -29,29 +29,29 @@ Each step is explained and approved before it runs.
 | 2.5 | Coverage reports + 80% gate (service tests were done in 2.3) | ✅ Done | 2026-10-20 |
 | 2.6 | Config moved into each app; root `.env` removed | ✅ Done | 2026-10-20 |
 | 2.7 | Postman collection (v3 YAML) + `java-dev` / `python-dev` environments | ✅ Done (redone in v3) | 2026-10-20 |
-| 2.8 | Database profiles `local` (installed Postgres, 5433) and `docker` (5432) | ✅ Done (setup SQL to be run by user) | 2026-10-20 |
+| 2.8 | Database profiles `local` (installed Postgres, 5433) and `docker` (5432) | ✅ Done | 2026-10-20 |
 | 2.9 | `db-scripts/`: schema `ecomm` + DDL for all 14 tables | ✅ Done, merged into one file in 2.10 | 2026-10-20 |
 | 2.10 | Single setup file `db-scripts/ecomm-setup.sql` | ✅ Done | 2026-10-20 |
 | 2.11 | No app login: everything uses `postgres`/`password`; schema created on local Postgres | ✅ Done | 2026-10-20 |
 | 2.12 | pgAdmin removed from Docker (a local pgAdmin is used instead) | ✅ Done | 2026-10-21 |
 | 2.13 | `db/` folder (compose + scripts) and day-1 sample data (DML) for all 14 tables | ✅ Done (local and Docker) | 2026-10-21 |
 | 3.1 | Connect to PostgreSQL (both apps, both profiles) | ✅ Done | 2026-10-21 |
-| 3.2 | Schema migrations (Flyway / Alembic) | ▶️ Next (schema currently owned by `db/scripts/ecomm-setup.sql`) | |
+| 3.2 | Schema migrations (Flyway / Alembic) | ⏭️ Skipped (user decision): schema owned by `db/scripts/ecomm-setup.sql` | 2026-10-22 |
 | 3.3 | Entities and relationships (Product mapped; others later) | ✅ Done for products | 2026-10-21 |
 | 3.4 | Swap to database repository | ✅ Done | 2026-10-21 |
-| 3.5 | Seed sample data | ⏳ Pending | |
+| 3.5 | Seed sample data | ✅ Done via `db/scripts/day1-sample-data.sql` (Step 2.13) | 2026-10-21 |
 | 3.6 | Repository tests with Testcontainers | ✅ Done for products | 2026-10-21 |
 | 4.1 | Request/response models (DTOs), entity kept internal | ✅ Done for products | 2026-10-21 |
 | 4.1a | Same JSON formats in both apps: price as 2-decimal string, UTC timestamps with Z | ✅ Done | 2026-10-21 |
 | 4.1b | Folders renamed: `java-app` → `ecomm-java-app`, `python-app` → `ecomm-py-app` | ✅ Done | 2026-10-21 |
-| 4.2 | Input validation | ⏳ Pending | |
+| 4.2 | Input validation | ▶️ Next | |
 | 4.3 | Uniform error format | ⏳ Pending | |
 | 4.4 | Central error handling | ⏳ Pending | |
 | 5.1 | Pagination | ⏳ Pending | |
 | 5.2 | Sorting | ⏳ Pending | |
 | 5.3 | Filtering | ⏳ Pending | |
 | 5.4 | Categories and product status | ⏳ Pending (status + soft delete done early in 3.3) | |
-| 5.5 | API documentation | ⏳ Pending | |
+| 5.5 | API documentation | ⏳ Pending (Python already has /docs; Java needs springdoc) | |
 | 6.1 | Users with hashed passwords | ⏳ Pending | |
 | 6.2 | Register | ⏳ Pending | |
 | 6.3 | Login and JWT | ⏳ Pending | |
@@ -1412,3 +1412,21 @@ Postman: 10 requests, 19 assertions, 0 failed on both. Day-1 data reset afterwar
 **Learned:** On Windows a folder can't be renamed while **any** process has it as its current directory or holds a file in it open: IDEs, terminals, even a shell's `cd`. Virtual environments aren't relocatable (absolute paths inside), so after moving a project, rebuild `.venv` from the lock file.
 
 **Not committed yet.** For Git it's a move; `git add -A` records it as renames.
+
+### Step 3.2: Skipped: no migration tool (2026-10-22)
+
+**Decision (user):** No Flyway (and therefore no Alembic on the Python side).
+
+**How the schema is managed instead:**
+- **`db/scripts/ecomm-setup.sql` is the single source of truth.** It's re-runnable: it creates the database, schema and tables only if missing.
+- It's used everywhere: the local Postgres (run by hand), the Docker Postgres (automatic on first start), and the Testcontainers databases in both test suites.
+- **The apps never change the schema.** Java: `spring.jpa.hibernate.ddl-auto: validate` (startup fails if the entity and table don't match). Python: no `create_all()`, tables are only mapped.
+
+**Consequence to keep in mind:** there's no versioned upgrade path. A schema change means:
+1. Edit `ecomm-setup.sql`.
+2. For an *existing* database, either write the `ALTER TABLE …` by hand, or reset (`99-drop-schema.sql`, then `ecomm-setup.sql` + `day1-sample-data.sql`; dev data only).
+3. Recreate the Docker DB with `docker compose -f db/docker-compose.yml down -v` (the tests pick up the file automatically).
+
+That's fine for a POC whose data can always be rebuilt. Real systems use a migration tool so production data survives changes.
+
+**Log corrections made at the same time:** 0.2b notes that pgAdmin was removed in 2.12; 2.8 no longer says "setup SQL to be run by user"; **3.5 marked done** (the day-1 sample data covers it); 5.5 notes that Python already has `/docs`.
