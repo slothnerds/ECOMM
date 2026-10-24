@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from ecommerce.core import health
 from ecommerce.core.config import get_settings
 from ecommerce.core.db import database_info, get_engine
+from ecommerce.core.errors import register_error_handlers
 from ecommerce.product import router as product_router
 
 # Reuse uvicorn's already-configured logger until logging is set up properly (Stage 16)
@@ -41,6 +42,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
+# One error format for every failure (core/errors.py)
+register_error_handlers(app)
 app.include_router(health.router)
 app.include_router(product_router.router)
 

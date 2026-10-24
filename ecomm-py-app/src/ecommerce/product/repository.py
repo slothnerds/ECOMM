@@ -8,7 +8,7 @@ import threading
 from dataclasses import replace
 from typing import Protocol
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
 
@@ -32,6 +32,10 @@ class ProductRepository(Protocol):
 
     def find_all(self) -> list[Product]:
         """All products, ordered by id."""
+        ...
+
+    def find_page(self, offset: int, limit: int) -> tuple[list[Product], int]:
+        """Up to `limit` products after skipping `offset`, ordered by id, plus the total count."""
         ...
 
 
@@ -108,6 +112,14 @@ class SqlProductRepository:
             for row in self._session.scalars(select(ProductRow).order_by(ProductRow.id))
         ]
 
+    def find_page(self, offset: int, limit: int) -> tuple[list[Product], int]:
+        """Two queries, like Spring Data: SELECT ... LIMIT/OFFSET and SELECT count(*)."""
+        rows = self._session.scalars(
+            select(ProductRow).order_by(ProductRow.id).offset(offset).limit(limit)
+        )
+        total = self._session.scalar(select(func.count()).select_from(ProductRow)) or 0
+        return [_to_domain(row) for row in rows], total
+
 
 class InMemoryProductRepository:
     """Thread-safe in-memory fake for fast service and router tests (the Stage 2 store).
@@ -144,3 +156,7 @@ class InMemoryProductRepository:
     def find_all(self) -> list[Product]:
         with self._lock:
             return [replace(p) for p in sorted(self._products.values(), key=lambda p: p.id or 0)]
+
+    def find_page(self, offset: int, limit: int) -> tuple[list[Product], int]:
+        everything = self.find_all()
+        return everything[offset : offset + limit], len(everything)

@@ -55,6 +55,20 @@ def test_find_by_sku_and_find_all_ordered_by_id(repository: SqlProductRepository
     assert repository.find_all() == [first, second]
 
 
+def test_find_page_uses_limit_offset_and_counts_the_total(
+    repository: SqlProductRepository,
+) -> None:
+    for n in range(1, 6):
+        repository.save(product(f"TST-{n}"))
+
+    second, total = repository.find_page(offset=2, limit=2)
+    beyond, total_beyond = repository.find_page(offset=18, limit=2)
+
+    assert [p.sku for p in second] == ["TST-3", "TST-4"]
+    assert total == 5
+    assert (beyond, total_beyond) == ([], 5)
+
+
 def test_update_increments_the_version(repository: SqlProductRepository) -> None:
     saved = repository.save(product("TST-1"))
 

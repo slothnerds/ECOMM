@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 
+from ecommerce.core.paging import Page
 from ecommerce.product.exceptions import DuplicateSkuError, ProductNotFoundError
 from ecommerce.product.models import Product, ProductStatus, ProductUpdate
 from ecommerce.product.repository import ProductRepository
@@ -31,8 +32,13 @@ class ProductService:
             raise ProductNotFoundError(product_id)
         return product
 
-    def list(self) -> list[Product]:
-        return self._repository.find_all()
+    def list(self, page: int, size: int) -> Page[Product]:
+        """One page of the catalog, ordered by id so pages are stable.
+
+        Page numbers start at 0; a page past the end is empty. The router validates page and size.
+        """
+        items, total = self._repository.find_page(offset=page * size, limit=size)
+        return Page(items=items, page=page, size=size, total_items=total)
 
     def update(self, product_id: int, update: ProductUpdate) -> Product:
         """Change name, description, price and status. The SKU never changes."""

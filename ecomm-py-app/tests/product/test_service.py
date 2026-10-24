@@ -35,7 +35,7 @@ def test_create_assigns_an_id(service: ProductService) -> None:
     created = service.create(mug())
 
     assert created.id == 1
-    assert service.list() == [created]
+    assert service.list(page=0, size=20).items == [created]
 
 
 def test_create_ignores_an_id_on_the_input(service: ProductService) -> None:
@@ -112,3 +112,16 @@ def test_duplicate_sku_never_calls_save_mock_style() -> None:
 
     repository.find_by_sku.assert_called_once_with("MUG-1")  # like verify(repository)
     repository.save.assert_not_called()  # like verify(repository, never()).save(any())
+
+
+def test_list_returns_the_requested_page_ordered_by_id(service: ProductService) -> None:
+    for n in range(1, 6):
+        service.create(replace(mug(), sku=f"MUG-{n}"))
+
+    second = service.list(page=1, size=2)
+    beyond = service.list(page=9, size=2)
+
+    assert [p.sku for p in second.items] == ["MUG-3", "MUG-4"]
+    assert (second.total_items, second.total_pages) == (5, 3)
+    assert beyond.items == []
+    assert beyond.total_items == 5

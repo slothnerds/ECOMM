@@ -59,7 +59,19 @@ def test_list_is_empty_at_first(client: TestClient) -> None:
     response = client.get("/api/v1/products")
 
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json() == {
+        "items": [], "page": 0, "size": 20, "totalItems": 0, "totalPages": 0,
+    }  # fmt: skip
+
+
+def test_list_passes_page_and_size_and_reports_totals(client: TestClient) -> None:
+    for n in range(1, 12):
+        client.post("/api/v1/products", json={**MUG, "sku": f"MUG-{n}"})
+
+    body = client.get("/api/v1/products", params={"page": 2, "size": 5}).json()
+
+    assert (body["page"], body["size"], body["totalItems"], body["totalPages"]) == (2, 5, 11, 3)
+    assert [p["sku"] for p in body["items"]] == ["MUG-11"]
 
 
 def test_create_returns_201_with_location(client: TestClient) -> None:
@@ -76,7 +88,8 @@ def test_create_returns_409_on_duplicate_sku(client: TestClient) -> None:
     response = client.post("/api/v1/products", json=MUG)
 
     assert response.status_code == 409
-    assert "MUG-1" in response.json()["detail"]
+    assert response.json()["code"] == "DUPLICATE_SKU"
+    assert "MUG-1" in response.json()["message"]
 
 
 def test_get_returns_product_and_404_when_missing(client: TestClient) -> None:
@@ -132,7 +145,8 @@ def test_round_trip_through_the_database(client: TestClient) -> None:
     product_id = created.json()["id"]
 
     listed = client.get("/api/v1/products").json()
-    assert [(p["sku"], p["price"]) for p in listed] == [("INT-1", "11.25")]
+    assert [(p["sku"], p["price"]) for p in listed["items"]] == [("INT-1", "11.25")]
+    assert listed["totalItems"] == 1
     assert client.post("/api/v1/products", json={**MUG, "sku": "INT-1"}).status_code == 409
 
     assert client.delete(f"/api/v1/products/{product_id}").status_code == 204
