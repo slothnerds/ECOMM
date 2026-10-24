@@ -1,14 +1,10 @@
 package com.example.ecommerce.product.exception;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
+import com.example.ecommerce.core.error.BusinessException;
+import com.example.ecommerce.core.error.ErrorCode;
 
-/**
- * Another product already uses this SKU. Mapped to 409 for now via @ResponseStatus; Stage 4
- * replaces this with central handling.
- */
-@ResponseStatus(HttpStatus.CONFLICT)
-public class DuplicateSkuException extends RuntimeException {
+/** Another product already uses this SKU (409 DUPLICATE_SKU). */
+public class DuplicateSkuException extends BusinessException {
 
   // Exceptions are Serializable (inherited from Throwable); a fixed version id avoids an -Xlint
   // warning
@@ -17,7 +13,7 @@ public class DuplicateSkuException extends RuntimeException {
   private final String sku;
 
   public DuplicateSkuException(String sku) {
-    super("A product with SKU " + sku + " already exists");
+    super(ErrorCode.DUPLICATE_SKU, "A product with SKU " + sku + " already exists");
     this.sku = sku;
   }
 

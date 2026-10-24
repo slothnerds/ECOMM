@@ -6,8 +6,11 @@
 # @host = http://localhost:8000
 @sku = TST-1001
 
-### 1. List products (the 12 day-1 products first)
+### 1. List products: first page of 20 -> {items, page, size, totalItems, totalPages}
 GET {{host}}/api/v1/products
+
+### 1b. Second page of 5 (page is 0-based; size 1-100)
+GET {{host}}/api/v1/products?page=1&size=5
 
 ### 2. Create a product: 201 Created + Location header
 POST {{host}}/api/v1/products

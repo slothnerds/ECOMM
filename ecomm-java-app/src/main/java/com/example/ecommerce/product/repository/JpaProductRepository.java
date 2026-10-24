@@ -4,6 +4,8 @@ import com.example.ecommerce.product.model.Product;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
@@ -35,5 +37,11 @@ public class JpaProductRepository implements ProductRepository {
   @Override
   public List<Product> findAll() {
     return jpa.findAll(Sort.by("id"));
+  }
+
+  /** Spring Data runs two queries: SELECT ... LIMIT/OFFSET and SELECT count(*). */
+  @Override
+  public Page<Product> findAll(Pageable pageable) {
+    return jpa.findAll(pageable);
   }
 }

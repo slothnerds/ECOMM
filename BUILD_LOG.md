@@ -44,11 +44,11 @@ Each step is explained and approved before it runs.
 | 4.1 | Request/response models (DTOs), entity kept internal | ✅ Done for products | 2026-10-21 |
 | 4.1a | Same JSON formats in both apps: price as 2-decimal string, UTC timestamps with Z | ✅ Done | 2026-10-21 |
 | 4.1b | Folders renamed: `java-app` → `ecomm-java-app`, `python-app` → `ecomm-py-app` | ✅ Done | 2026-10-21 |
-| 4.2 | Input validation | ▶️ Next | |
-| 4.3 | Uniform error format | ⏳ Pending | |
-| 4.4 | Central error handling | ⏳ Pending | |
-| 5.1 | Pagination | ⏳ Pending | |
-| 5.2 | Sorting | ⏳ Pending | |
+| 4.2 | Input validation | ✅ Done | 2026-10-22 |
+| 4.3 | Uniform error format (identical in both apps) | ✅ Done | 2026-10-22 |
+| 4.4 | Central error handling | ✅ Done | 2026-10-22 |
+| 5.1 | Pagination | ✅ Done | 2026-10-23 |
+| 5.2 | Sorting | ▶️ Next | |
 | 5.3 | Filtering | ⏳ Pending | |
 | 5.4 | Categories and product status | ⏳ Pending (status + soft delete done early in 3.3) | |
 | 5.5 | API documentation | ⏳ Pending (Python already has /docs; Java needs springdoc) | |
@@ -1430,3 +1430,143 @@ Postman: 10 requests, 19 assertions, 0 failed on both. Day-1 data reset afterwar
 That's fine for a POC whose data can always be rebuilt. Real systems use a migration tool so production data survives changes.
 
 **Log corrections made at the same time:** 0.2b notes that pgAdmin was removed in 2.12; 2.8 no longer says "setup SQL to be run by user"; **3.5 marked done** (the day-1 sample data covers it); 5.5 notes that Python already has `/docs`.
+
+### Steps 4.2 + 4.3 + 4.4: Validation, one error format, central handling (2026-10-22)
+
+**Requested by the user:** All three together, identical in both apps.
+
+#### The error body (both apps)
+
+```json
+{"code": "VALIDATION_FAILED", "message": "Request validation failed", "status": 400,
+ "path": "/api/v1/products", "timestamp": "2026-10-22T21:45:29.326Z",
+ "fieldErrors": [{"field": "name", "message": "must not be blank"},
+                 {"field": "price", "message": "must be greater than 0"},
+                 {"field": "sku", "message": "must look like ABC-123 (3 capital letters, a dash, digits)"}]}
+```
+
+- `fieldErrors` is always present (empty except for validation errors) and sorted by field, then message.
+- Timestamps are UTC with milliseconds and `Z`.
+- Unexpected errors never reveal details; those go to the log.
+
+| Code | HTTP | When |
+|---|---|---|
+| `VALIDATION_FAILED` | 400 | Invalid fields (also a wrong JSON type, an unknown enum value, or a non-numeric path id) |
+| `MALFORMED_REQUEST` | 400 | No body or broken JSON |
+| `PRODUCT_NOT_FOUND` | 404 | Unknown product id |
+| `NOT_FOUND` / `METHOD_NOT_ALLOWED` | 404 / 405 | Unknown URL / wrong HTTP method |
+| `DUPLICATE_SKU` | 409 | SKU exists |
+| `CONCURRENT_UPDATE` | 409 | Optimistic-lock conflict |
+| `CONFLICT` | 409 | Any other DB constraint violation |
+| `INTERNAL_ERROR` | 500 | Anything else |
+
+**Validation rules (create / update):**
+- `sku`: required, `[A-Z]{3}-\d{1,28}`.
+- `name`: required, not blank, ≤ 200.
+- `description`: optional, ≤ 2000.
+- `price`: required, > 0, ≤ 10 + 2 digits.
+- `status`: optional on create (default ACTIVE), required on update.
+- `categoryId`: optional, > 0.
+- Shared messages: `is required`, `must not be blank`, `must be at most N characters`, `must be greater than 0`, `must have at most 10 digits before and 2 after the decimal point`, `must look like ABC-123 (…)`, `must be one of DRAFT, ACTIVE, DISCONTINUED`, `has an invalid value`.
+- `null` counts as missing.
+
+#### Java (`core/error/` + product)
+
+| File | Role |
+|---|---|
+| `ErrorCode` | Enum code → `HttpStatus` |
+| `BusinessException` | Abstract parent carrying an `ErrorCode`; `ProductNotFoundException` / `DuplicateSkuException` extend it (the temporary `@ResponseStatus` is gone) |
+| `ApiError` | Record + nested `FieldError`; `of(...)` truncates the timestamp to millis and sorts field errors |
+| `ValidationMessages` | Shared message and regex constants (annotation attributes must be constants) |
+| `GlobalExceptionHandler` | `@RestControllerAdvice`: BusinessException, `MethodArgumentNotValidException`, `HttpMessageNotReadableException` (a Jackson 3 `MismatchedInputException` with a property path → field error; enum → "must be one of …"; otherwise MALFORMED), `MethodArgumentTypeMismatchException`, `NoResourceFoundException`, `HttpRequestMethodNotSupportedException`, `ObjectOptimisticLockingFailureException`, `DataIntegrityViolationException`, `Exception` (logged) |
+| DTOs | `@NotNull`, `@Pattern`, `@Size`, `@DecimalMin(inclusive = false)`, `@Digits(10, 2)`, `@Positive`, with the shared messages; the controller uses **`@Valid @RequestBody`** |
+| `ErrorHandlingTest` | **New, 15 tests**: every code, exact messages, body shape, the service is never called on invalid input |
+
+#### Python (`core/api.py`, `core/errors.py` + product)
+
+| File | Role |
+|---|---|
+| `core/api.py` | **New.** Shared `ApiModel`, `Money`, `UtcDateTime` (moved from `product/schemas.py`), `Messages`, and validated types `Name`, `Sku`, `Description`, `Price`, `PositiveId` (`Field` limits + `AfterValidator`s raising `ValueError(<shared message>)`) |
+| `core/errors.py` | **New.** `ErrorCode` StrEnum + status map, `BusinessError`, `ApiError`/`FieldError`, `error_response()`, and a **translation of Pydantic error types** (`missing`, `*_type` with null input, `string_too_long`, `greater_than`, `decimal_*`, `enum`, `value_error`) into the shared messages. `register_error_handlers(app)`: BusinessError, `RequestValidationError` (**400**, not FastAPI's default 422; whole-body problems → MALFORMED), Starlette `HTTPException` (404/405; anything else → INTERNAL_ERROR), `StaleDataError`, `IntegrityError`, `Exception` |
+| `product/router.py` | **No try/except left**; the path parameter is published as `id` (`Path(alias="id")`) so error fields match Java |
+| `product/exceptions.py` | Subclass `BusinessError` with their `code` |
+| `main.py` | `register_error_handlers(app)` |
+| `tests/test_errors.py` | **New, 16 tests**: the same 15 cases as Java + the fallback for other HTTP errors |
+
+#### Postman
+
+New **"Errors"** folder (order 4000): invalid product (400, field list and exact messages), unknown product (404 PRODUCT_NOT_FOUND), unknown endpoint (404 NOT_FOUND). Lint: 13 requests, 0 issues.
+
+#### Verification
+
+- **Java 59 tests** ✅ + coverage gate. **Python 76 tests** ✅, 100% coverage.
+- **Live parity, 14 bad requests to both apps** (missing fields, broken rules, length + precision, wrong type, null, unknown enum, missing status, broken JSON, no body, non-numeric id, unknown product, duplicate SKU, unknown URL, wrong method): **14/14 identical** status and body (timestamp excluded, both end in `Z`).
+- Postman on both: 13 requests, **30 assertions, 0 failed**. Day-1 data reset afterwards.
+
+**Learned:**
+- Framework defaults differ a lot: Spring answered 400 with no field details, FastAPI 422 with Pydantic's wording. A **stable error code** plus your own message texts is what makes an API predictable across implementations.
+- Bean Validation runs **all** annotations on a field; `@NotBlank` would have fired on `null` too, so `@NotNull` + a "not blank" `@Pattern` gives distinct messages for missing vs blank.
+- Jackson 3 puts `getPath()` on the base `JacksonException`, so a type error in the body can be reported **per field**.
+- A **shell heredoc ate a backslash** (`\S` → `\S`) in the Java regex constants; fixed with the file editor, then grepped for other single escapes.
+- FastAPI's `Exception` handler responds, then the error middleware **re-raises** (good for logs), so tests use `TestClient(app, raise_server_exceptions=False)` for the 500 case.
+
+**Not committed yet.**
+
+### Step 5.1: Pagination (2026-10-23)
+
+**Contract (both apps):** `GET /api/v1/products?page=0&size=20` →
+
+```json
+{"items": [ ...ProductResponse... ], "page": 0, "size": 20, "totalItems": 12, "totalPages": 1}
+```
+
+- `page` is 0-based (≥ 0, default 0); `size` is 1–100 (default 20).
+- Ordered by `id`, so pages are stable.
+- A page past the end returns 200 with empty `items` and correct totals.
+- Out-of-range or non-numeric values give the standard **400 VALIDATION_FAILED** with the same messages (`must be greater than or equal to 0/1`, `must be less than or equal to 100`, `has an invalid value`).
+
+**Design decision:** **not** Spring's `Pageable` parameter, which silently clamps bad values (size 500 → 100, page −1 → 0). Python would have rejected them, so the apps would have differed. Both use explicit, validated `page`/`size` parameters instead.
+
+#### Java
+
+| File | Change |
+|---|---|
+| `core/web/PageResponse.java` | **New** generic record `PageResponse<T>(items, page, size, totalItems, totalPages)` + `from(Page<E>, mapper)` (Spring's `Page` JSON is verbose and not a stable contract) |
+| `ProductRepository` / `JpaProductRepository` | + `Page<Product> findAll(Pageable)` (Spring Data: `LIMIT/OFFSET` + `count(*)`) |
+| `ProductService.list(page, size)` | `PageRequest.of(page, size, Sort.by("id"))` |
+| `ProductController.list` | `@RequestParam(defaultValue)` + `@Min`/`@Max` with shared messages, using Spring 6.1+ **built-in method validation** (no `@Validated` needed) |
+| `ValidationMessages` | + `AT_LEAST_0`, `AT_LEAST_1`, `AT_MOST_100` |
+| `GlobalExceptionHandler` | + `HandlerMethodValidationException` → VALIDATION_FAILED with the parameter name as `field` |
+| Tests | Service (page request + sort captured), controller (totals, param passing), `JpaProductRepositoryTest` (+1: LIMIT/OFFSET, total, past the end), `ErrorHandlingTest` (+1: page/size validation), integration (`$.items`, `totalItems`). **62 tests** ✅ |
+
+#### Python
+
+| File | Change |
+|---|---|
+| `core/paging.py` | **New.** `Page[T]` frozen dataclass (service side, `total_pages` rounds up) and `PageResponse[T]` Pydantic model with `of(page, mapper)`, using **PEP 695 generics** (`class Page[T]`), which Pydantic and mypy support |
+| `ProductRepository` Protocol | + `find_page(offset, limit) -> (items, total)`; SQL: `.order_by(id).offset().limit()` + `select(func.count())`; the in-memory fake slices |
+| `ProductService.list(page, size)` | Returns `Page[Product]` |
+| Router | `page: Annotated[int, Query(ge=0)] = 0`, `size: Annotated[int, Query(ge=1, le=100)] = 20` → `PageResponse[ProductResponse]` |
+| `core/errors.py` | + messages for `greater_than_equal` and `less_than_equal` |
+| Tests | Service/router/SQL repository paging tests, `test_errors` page/size validation, **new `tests/test_paging.py`** (rounding, camelCase). **82 tests** ✅, 100% |
+
+#### Postman and `.http`
+
+- "1. List products" now checks the page keys.
+- New **"Paging"** folder (order 2500): second page of 5 (echoes page/size, ≤ 5 items, `totalPages = ceil(totalItems/5)`, ordered by id) and size 101 → 400 with the exact field error.
+- `products.http` + request 1b (`?page=1&size=5`).
+- Lint: 15 requests, 0 issues.
+
+#### Verification
+
+- **Live, 11 queries against both apps** (default, pages 0–3 of 5, size 100, page 99, page −1, size 0, size 101, page abc): **11/11 identical**. Success bodies byte-for-byte (ids 1–5 / 6–10 / 11–12 / empty, totalItems 12, totalPages 3); error bodies minus the timestamp.
+- Postman: 15 requests, **39 assertions, 0 failed** on both apps. Day-1 data reset afterwards.
+
+**Issue on the way:** the first Java run had 11 errors, all in Testcontainers tests ("Could not find a valid Docker environment"). Docker Desktop wasn't running (new day). It was started, the engine was ready in seconds, and all tests passed. Testcontainers tests need Docker Desktop running.
+
+**Learned:**
+- Page numbering is a contract decision. Both apps use **0-based** pages, Spring Data's default. Many public APIs use 1-based; whichever you pick, document it and test it.
+- `totalItems` costs a second `count(*)` query on every page. Fine here; for huge tables, APIs switch to cursor ("keyset") paging without totals.
+- An unstable order (no `ORDER BY`) can repeat or skip rows between pages, so the order is always explicit (`id` for now; 5.2 adds client-chosen sorting with `id` as a tie-breaker).
+
+**Not committed yet.**

@@ -3,6 +3,8 @@ package com.example.ecommerce.product.repository;
 import com.example.ecommerce.product.model.Product;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 /**
  * Storage contract for products. Stage 2 had an in-memory implementation; since Stage 3 it is
@@ -19,4 +21,7 @@ public interface ProductRepository {
 
   /** All products, ordered by id. */
   List<Product> findAll();
+
+  /** One page of products; the Pageable says which page, its size and the order. */
+  Page<Product> findAll(Pageable pageable);
 }

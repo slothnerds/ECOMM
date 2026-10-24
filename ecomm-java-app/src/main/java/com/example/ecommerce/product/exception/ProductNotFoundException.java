@@ -1,14 +1,10 @@
 package com.example.ecommerce.product.exception;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
+import com.example.ecommerce.core.error.BusinessException;
+import com.example.ecommerce.core.error.ErrorCode;
 
-/**
- * No product exists with the requested id. Mapped to 404 for now via @ResponseStatus; Stage 4
- * replaces this with central handling.
- */
-@ResponseStatus(HttpStatus.NOT_FOUND)
-public class ProductNotFoundException extends RuntimeException {
+/** No product exists with the requested id (404 PRODUCT_NOT_FOUND). */
+public class ProductNotFoundException extends BusinessException {
 
   // Exceptions are Serializable (inherited from Throwable); a fixed version id avoids an -Xlint
   // warning
@@ -17,7 +13,7 @@ public class ProductNotFoundException extends RuntimeException {
   private final long productId;
 
   public ProductNotFoundException(long productId) {
-    super("Product " + productId + " not found");
+    super(ErrorCode.PRODUCT_NOT_FOUND, "Product " + productId + " not found");
     this.productId = productId;
   }
 

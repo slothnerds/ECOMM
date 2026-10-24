@@ -6,8 +6,10 @@ import com.example.ecommerce.product.model.Product;
 import com.example.ecommerce.product.model.ProductStatus;
 import com.example.ecommerce.product.model.ProductUpdate;
 import com.example.ecommerce.product.repository.ProductRepository;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,9 +43,13 @@ public class ProductService {
     return repository.findById(id).orElseThrow(() -> new ProductNotFoundException(id));
   }
 
+  /**
+   * One page of the catalog, ordered by id so pages are stable. Page numbers start at 0; a page
+   * past the end is empty. The controller validates page and size.
+   */
   @Transactional(readOnly = true)
-  public List<Product> list() {
-    return repository.findAll();
+  public Page<Product> list(int page, int size) {
+    return repository.findAll(PageRequest.of(page, size, Sort.by("id")));
   }
 
   /** Changes name, description, price and status. The SKU never changes. */
