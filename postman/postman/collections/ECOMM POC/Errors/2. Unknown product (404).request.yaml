@@ -1,0 +1,14 @@
+$kind: http-request
+description: A business error - the code says exactly what was not found.
+url: "{{baseUrl}}/api/v1/products/999999"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 404", () => pm.response.to.have.status(404));
+      const body = pm.response.json();
+      pm.test("Code is PRODUCT_NOT_FOUND", () => pm.expect(body.code).to.eql("PRODUCT_NOT_FOUND"));
+      pm.test("Message names the id", () => pm.expect(body.message).to.eql("Product 999999 not found"));
+      pm.test("No field errors", () => pm.expect(body.fieldErrors).to.eql([]));
+    language: text/javascript
+order: 2000

@@ -1,0 +1,3 @@
+$kind: collection
+description: The one error format of both apps (Steps 4.2-4.4) - every failure returns {code, message, status, path, timestamp, fieldErrors}. Tests check the stable code, not the wording.
+order: 4000

@@ -49,7 +49,8 @@ class ProductApiIntegrationTest {
     mockMvc
         .perform(get("/api/v1/products"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$[?(@.sku == 'INT-1')].price").value("11.25"));
+        .andExpect(jsonPath("$.items[?(@.sku == 'INT-1')].price").value("11.25"))
+        .andExpect(jsonPath("$.totalItems").value(1));
 
     // Same SKU again: the service finds it in the database
     mockMvc

@@ -22,6 +22,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 /**
  * Unit tests with a Mockito mock instead of a real repository: we script its answers (when) and
@@ -71,10 +76,15 @@ class ProductServiceTest {
   }
 
   @Test
-  void listReturnsWhatTheRepositoryHas() {
-    when(repository.findAll()).thenReturn(List.of(mug(1L)));
+  void listAsksForTheRequestedPageOrderedById() {
+    Page<Product> page = new PageImpl<>(List.of(mug(1L)), PageRequest.of(2, 5), 11);
+    ArgumentCaptor<Pageable> requested = ArgumentCaptor.forClass(Pageable.class);
+    when(repository.findAll(requested.capture())).thenReturn(page);
 
-    assertThat(service.list()).containsExactly(mug(1L));
+    assertThat(service.list(2, 5).getContent()).containsExactly(mug(1L));
+    assertThat(requested.getValue().getPageNumber()).isEqualTo(2);
+    assertThat(requested.getValue().getPageSize()).isEqualTo(5);
+    assertThat(requested.getValue().getSort()).isEqualTo(Sort.by("id"));
   }
 
   @Test

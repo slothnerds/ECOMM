@@ -1,0 +1,22 @@
+$kind: http-request
+description: Page 1 (the second page) with 5 products per page.
+url: "{{baseUrl}}/api/v1/products?page=1&size=5"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      const body = pm.response.json();
+      pm.test("Page and size echo the request", () => {
+        pm.expect(body.page).to.eql(1);
+        pm.expect(body.size).to.eql(5);
+      });
+      pm.test("At most 5 items", () => pm.expect(body.items.length).to.be.at.most(5));
+      pm.test("totalPages = ceil(totalItems / size)", () =>
+        pm.expect(body.totalPages).to.eql(Math.ceil(body.totalItems / 5)));
+      pm.test("Ordered by id", () => {
+        const ids = body.items.map(p => p.id);
+        pm.expect(ids).to.eql([...ids].sort((a, b) => a - b));
+      });
+    language: text/javascript
+order: 1000

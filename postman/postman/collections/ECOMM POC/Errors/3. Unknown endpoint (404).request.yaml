@@ -1,0 +1,14 @@
+$kind: http-request
+description: A URL no controller serves - same body format, code NOT_FOUND.
+url: "{{baseUrl}}/api/v1/nope"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 404", () => pm.response.to.have.status(404));
+      const body = pm.response.json();
+      pm.test("Code is NOT_FOUND", () => pm.expect(body.code).to.eql("NOT_FOUND"));
+      pm.test("Message names method and path", () =>
+        pm.expect(body.message).to.eql("No endpoint GET /api/v1/nope"));
+    language: text/javascript
+order: 3000

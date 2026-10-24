@@ -27,6 +27,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -50,13 +52,17 @@ class ProductControllerTest {
 
   @Test
   void listReturnsProducts() throws Exception {
-    when(service.list()).thenReturn(List.of(mug()));
+    when(service.list(0, 20)).thenReturn(new PageImpl<>(List.of(mug()), PageRequest.of(0, 20), 1));
 
     mockMvc
         .perform(get("/api/v1/products"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$[0].sku").value("MUG-1"))
-        .andExpect(jsonPath("$[0].price").value("9.99"));
+        .andExpect(jsonPath("$.items[0].sku").value("MUG-1"))
+        .andExpect(jsonPath("$.items[0].price").value("9.99"))
+        .andExpect(jsonPath("$.page").value(0))
+        .andExpect(jsonPath("$.size").value(20))
+        .andExpect(jsonPath("$.totalItems").value(1))
+        .andExpect(jsonPath("$.totalPages").value(1));
   }
 
   @Test
@@ -67,6 +73,19 @@ class ProductControllerTest {
         .perform(get("/api/v1/products/1"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.name").value("Mug"));
+  }
+
+  @Test
+  void listPassesPageAndSizeAndReportsTotals() throws Exception {
+    when(service.list(2, 5)).thenReturn(new PageImpl<>(List.of(mug()), PageRequest.of(2, 5), 11));
+
+    mockMvc
+        .perform(get("/api/v1/products").param("page", "2").param("size", "5"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.page").value(2))
+        .andExpect(jsonPath("$.size").value(5))
+        .andExpect(jsonPath("$.totalItems").value(11))
+        .andExpect(jsonPath("$.totalPages").value(3));
   }
 
   @Test

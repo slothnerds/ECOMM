@@ -14,6 +14,9 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -64,6 +67,23 @@ class JpaProductRepositoryTest {
     assertThat(repository.findBySku("TST-2")).contains(second);
     assertThat(repository.findBySku("NOPE-1")).isEmpty();
     assertThat(repository.findAll()).containsExactly(first, second);
+  }
+
+  @Test
+  void pagesUseLimitOffsetAndCountTheTotal() {
+    for (int i = 1; i <= 5; i++) {
+      repository.save(product("TST-" + i));
+    }
+    flushAndClear();
+
+    Page<Product> second = repository.findAll(PageRequest.of(1, 2, Sort.by("id")));
+    Page<Product> beyond = repository.findAll(PageRequest.of(9, 2, Sort.by("id")));
+
+    assertThat(second.getContent()).extracting(Product::getSku).containsExactly("TST-3", "TST-4");
+    assertThat(second.getTotalElements()).isEqualTo(5);
+    assertThat(second.getTotalPages()).isEqualTo(3);
+    assertThat(beyond.getContent()).isEmpty();
+    assertThat(beyond.getTotalElements()).isEqualTo(5);
   }
 
   @Test
